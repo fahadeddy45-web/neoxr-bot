@@ -1,0 +1,42 @@
+export default {
+   command: ['antilink'],
+   description: 'Turn antilink on / off',
+   category: 'group',
+   admin: true,
+   botAdmin: true,
+   group: true,
+   run: async (m, { conn, args, Func, Scraper }) => {
+      const chat = global.db.data.chats[m.chat] || {}
+      if (!args[0]) return m.reply(`*Example:* .antilink on / off\n\nCurrent: ${chat.antilink ? 'ON ✅' : 'OFF ❌'}`)
+      if (args[0] === 'on') {
+         chat.antilink = true
+         m.reply('Antilink is now *ON* ✅\nLinks will be deleted.')
+      } else if (args[0] === 'off') {
+         chat.antilink = false
+         m.reply('Antilink is now *OFF* ❌')
+      } else {
+         m.reply('Use: .antilink on / off')
+      }
+      global.db.data.chats[m.chat] = chat
+   },
+   all: async (m, { conn }) => {
+      if (!m.isGroup) return
+      const chat = global.db.data.chats[m.chat] || {}
+      if (!chat.antilink) return
+      const text = m.text || m.msg?.caption || ''
+      if (!text) return
+      const isLink = /chat\.whatsapp\.com\/|wa\.me\/|https?:\/\/(www\.)?(youtube|tiktok|instagram|facebook|telegram|twitter|x\.com)/i.test(text)
+      if (!isLink) return
+      try {
+         const groupMetadata = await conn.groupMetadata(m.chat)
+         const isAdmin = groupMetadata.participants.find(p => p.id === m.sender)?.admin
+         const isBotAdmin = groupMetadata.participants.find(p => p.id === conn.user.jid)?.admin
+         if (isAdmin) return
+         if (!isBotAdmin) return
+         await conn.sendMessage(m.chat, { delete: m.key })
+         await conn.sendMessage(m.chat, { text: `⚠️ @${m.sender.split('@')[0]} links are not allowed here!`, mentions: [m.sender] })
+      } catch (e) {
+         console.log(e)
+      }
+   }
+}
